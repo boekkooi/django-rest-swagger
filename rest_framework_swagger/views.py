@@ -8,8 +8,7 @@ from rest_framework_swagger.urlparser import UrlParser
 from rest_framework_swagger.apidocview import APIDocView
 from rest_framework_swagger.docgenerator import DocumentationGenerator
 
-from rest_framework_swagger import SWAGGER_SETTINGS
-
+from rest_framework_swagger.settings import swagger_settings
 
 class SwaggerUIView(View):
 
@@ -22,8 +21,8 @@ class SwaggerUIView(View):
         data = {
             'swagger_settings': {
                 'discovery_url': "%sapi-docs/" % request.build_absolute_uri(),
-                'api_key': SWAGGER_SETTINGS.get('api_key', ''),
-                'enabled_methods': mark_safe(SWAGGER_SETTINGS.get('enabled_methods'))
+                'api_key': getattr(swagger_settings, 'api_key', ''),
+                'enabled_methods': mark_safe(getattr(swagger_settings, 'enabled_methods'))
             }
         }
         response = render_to_response(template_name, RequestContext(request, data))
@@ -31,10 +30,10 @@ class SwaggerUIView(View):
         return response
 
     def has_permission(self, request):
-        if SWAGGER_SETTINGS.get('is_superuser') and not request.user.is_superuser:
+        if getattr(swagger_settings, 'is_superuser') and not request.user.is_superuser:
             return False
 
-        if SWAGGER_SETTINGS.get('is_authenticated') and not request.user.is_authenticated():
+        if getattr(swagger_settings, 'is_authenticated') and not request.user.is_authenticated():
             return False
 
         return True
@@ -52,7 +51,7 @@ class SwaggerResourcesView(APIDocView):
             })
 
         return Response({
-            'apiVersion': SWAGGER_SETTINGS.get('api_version', ''),
+            'apiVersion': getattr(swagger_settings, 'api_version', ''),
             'swaggerVersion': '1.2',
             'basePath': self.host.rstrip('/'),
             'apis': apis
@@ -60,7 +59,7 @@ class SwaggerResourcesView(APIDocView):
 
     def get_resources(self):
         urlparser = UrlParser()
-        apis = urlparser.get_apis(exclude_namespaces=SWAGGER_SETTINGS.get('exclude_namespaces'))
+        apis = urlparser.get_apis(exclude_namespaces=getattr(swagger_settings, 'exclude_namespaces'))
         return urlparser.get_top_level_apis(apis)
 
 
