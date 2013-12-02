@@ -234,11 +234,11 @@ class DocumentationGeneratorTest(TestCase):
             'pattern': patterns('')
         }
         docgen = DocumentationGenerator()
-        operations = docgen.get_operations(api)
+        info = docgen.generate([api])
 
-        self.assertEqual('POST', operations[0]['httpMethod'])
+        self.assertEqual('POST', info['apis'][0]['operations'][0]['httpMethod'])
 
-    def test_get_operations_with_no_methods(self):
+    def test_generate_operations_with_no_methods(self):
 
         class AnAPIView(APIView):
             pass
@@ -249,9 +249,10 @@ class DocumentationGeneratorTest(TestCase):
             'pattern': patterns('')
         }
         docgen = DocumentationGenerator()
-        operations = docgen.get_operations(api)
+        info = docgen.generate([api])
 
-        self.assertEqual([], operations)
+        self.assertEqual([],  info['apis'][0]['operations'])
+        self.assertEqual({},  info['models'])
 
     def test_get_models(self):
         class SerializedAPI(ListCreateAPIView):
@@ -262,48 +263,34 @@ class DocumentationGeneratorTest(TestCase):
         apis = urlparser.get_apis(url_patterns)
 
         docgen = DocumentationGenerator()
-        models = docgen.get_models(apis)
+        info = docgen.generate(apis)
 
-        self.assertIn('CommentSerializer', models)
-
-    def test_get_serializer_set(self):
-        class SerializedAPI(ListCreateAPIView):
-            serializer_class = CommentSerializer
-
-        urlparser = UrlParser()
-        url_patterns = patterns('', url(r'my-api/', SerializedAPI.as_view()))
-        apis = urlparser.get_apis(url_patterns)
-
-        docgen = DocumentationGenerator()
-        serializers = docgen._get_serializer_set(apis)
-
-        self.assertIn(CommentSerializer, serializers)
-
-    def test_get_serializer_fields(self):
-        docgen = DocumentationGenerator()
-        fields = docgen._get_serializer_fields(CommentSerializer)
-
-        self.assertEqual(3, len(fields))
-
-    def test_get_serializer_fields_api_with_no_serializer(self):
-        docgen = DocumentationGenerator()
-        fields = docgen._get_serializer_fields(None)
-
-        self.assertIsNone(fields)
+        self.assertIn('CommentSerializer', info['models'])
+        self.assertIn('properties', info['models']['CommentSerializer'])
+        self.assertEqual(3, len(info['models']['CommentSerializer']['properties']))
 
     def test_get_serializer_class_access_request_context(self):
+        test_case = self
+        called = []
+
         class MyListView(ListCreateAPIView):
             serializer_class = CommentSerializer
             def get_serializer_class(self):
+                test_case.assertIsNotNone(self.request)
+                called.append(True)
                 self.serializer_class.context = {'request': self.request}
                 return self.serializer_class
 
-        docgen = DocumentationGenerator()
-        callback = MyListView
-        callback.request = HttpRequest()
-        serializer_class = docgen._get_serializer_class(MyListView)
 
-        self.assertIs(serializer_class, CommentSerializer)
+        urlparser = UrlParser()
+        url_patterns = patterns('', url(r'my-api/', MyListView.as_view()))
+        apis = urlparser.get_apis(url_patterns)
+
+        docgen = DocumentationGenerator()
+        info = docgen.generate(apis)
+
+        self.assertIn('CommentSerializer', info['models'])
+        self.assertGreater(len(called), 0)
 
 
 class IntrospectorHelperTest(TestCase):

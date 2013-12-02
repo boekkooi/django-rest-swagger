@@ -68,11 +68,13 @@ class SwaggerApiView(APIDocView):
 
     def get(self, request, path):
         apis = self.get_api_for_resource(path)
+
         generator = DocumentationGenerator()
+        apis_info = generator.generate(apis)
 
         return Response({
-            'apis': generator.generate(apis),
-            'models': generator.get_models(apis),
+            'apis': apis_info['apis'],
+            'models': apis_info['models'],
             'basePath': self.api_full_uri.rstrip('/'),
         })
 
