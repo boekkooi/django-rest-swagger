@@ -12,7 +12,7 @@ DEFAULTS = {
     'is_authenticated': False,
     'is_superuser': False,
 
-    'DEFAULT_DOCUMENTATION_PARSER_CLASSES': 'rest_framework_swagger.docparser.SimpleDocumentationParser'
+    'DEFAULT_DOCUMENTATION_PARSER_CLASSES': 'rest_framework_swagger.docparsers.SimpleDocumentationParser'
 }
 
 # List of settings that may be in string import notation.

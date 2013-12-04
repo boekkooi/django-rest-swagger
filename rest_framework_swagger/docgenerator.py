@@ -18,7 +18,7 @@ class DocumentationGenerator(object):
             api_info = self.retrieve_api_info(api)
 
             apis_docs.append({
-                'description': IntrospectorHelper.get_view_description(api['callback']),
+                'description': api_info['description'],
                 'path': api['path'],
                 'operations': api_info['operations'],
             })
@@ -54,7 +54,13 @@ class DocumentationGenerator(object):
             if serializer is not None and serializer_name not in models:
                 models[serializer_name] = self.generate_model(serializer)
 
+            deserializer = method_introspector.get_deserializer_class()
+            deserializer_name = IntrospectorHelper.get_serializer_name(serializer)
+            if deserializer is not None and deserializer_name not in models:
+                models[deserializer_name] = self.generate_model(deserializer)
+
         return {
+            'description': introspector.get_description(),
             'operations': operations,
             'models': models
         }

@@ -1,33 +1,21 @@
 """Handles the instrospection of REST Framework Views and ViewSets."""
+from modulefinder import ModuleFinder, READ_MODE
+import os
+import sys
+import imp
 from abc import ABCMeta, abstractmethod
+from django.utils import importlib
 import re
 
-from django.contrib.admindocs.utils import trim_docstring
+from rest_framework.views import get_view_name
 
-from rest_framework.views import get_view_name, get_view_description
+from rest_framework_swagger.settings import swagger_settings
+
+documentation_parser = getattr(swagger_settings, 'DEFAULT_DOCUMENTATION_PARSER_CLASSES')()
 
 
 class IntrospectorHelper(object):
     __metaclass__ = ABCMeta
-
-    @staticmethod
-    def strip_params_from_docstring(docstring):
-        """
-        Strips the params from the docstring (ie. myparam -- Some param) will
-        not be removed from the text body
-        """
-        split_lines = trim_docstring(docstring).split('\n')
-
-        cut_off = None
-        for index, line in enumerate(split_lines):
-            line = line.strip()
-            if line.find('--') != -1:
-                cut_off = index
-                break
-        if cut_off is not None:
-            split_lines = split_lines[0:cut_off]
-
-        return "<br/>".join(split_lines)
 
     @staticmethod
     def get_serializer_name(serializer):
@@ -36,13 +24,45 @@ class IntrospectorHelper(object):
 
         return serializer.__name__
 
+    @staticmethod
+    def resolve_documentation_information(callback, documentation):
+        if 'serializer' in documentation and isinstance(documentation['serializer'], str):
+            documentation['serializer'] = IntrospectorHelper.import_from_string(documentation['serializer'], callback)
+        if 'deserializer' in documentation and isinstance(documentation['deserializer'], str):
+            documentation['deserializer'] = IntrospectorHelper.import_from_string(documentation['deserializer'], callback)
+        return documentation
 
     @staticmethod
-    def get_view_description(callback):
-        """
-        Returns the first sentence of the first line of the class docstring
-        """
-        return get_view_description(callback).split("\n")[0].split(".")[0]
+    def import_from_string(name, callback):
+        if not name:
+            return None
+
+        if name.find('.') == -1:
+            # TODO add support for import names (`from .. import .. as ..`) maybe use ModuleFinder?
+            # within current module/file
+            class_name = name
+            module_path = callback.__module__
+        else:
+            # relative lookup?
+            if name[0] == '.':
+                module_path = callback.__module__
+                while name[0] == '.':
+                    idx = module_path.rfind('.')
+                    if len(name) == 1 or idx == -1:
+                        return None
+                    module_path = module_path[:idx]
+                    name = name[1:]
+                name = module_path + '.' + name
+
+            # extract class and module
+            parts = name.split('.')
+            module_path, class_name = '.'.join(parts[:-1]), parts[-1]
+
+        try:
+            module = importlib.import_module(module_path)
+            return getattr(module, class_name)
+        except ImportError as e:
+            return None
 
 
 class BaseViewIntrospector(object):
@@ -52,6 +72,11 @@ class BaseViewIntrospector(object):
         self.callback = callback
         self.path = path
         self.pattern = pattern
+
+        self.documentation = IntrospectorHelper.resolve_documentation_information(
+            self.callback,
+            documentation_parser.parse(self.callback.__doc__ or '')
+        )
 
     @abstractmethod
     def __iter__(self):
@@ -64,11 +89,19 @@ class BaseViewIntrospector(object):
         if hasattr(self.callback, 'get_serializer_class'):
             return self.callback().get_serializer_class()
 
+    def get_deserializer_class(self):
+        if 'deserializer' in self.documentation and self.documentation['deserializer'] is not None:
+            return self.documentation['deserializer']
+        return self.get_serializer_class()
+
     def get_description(self):
+        return self.documentation['description']
+
+    def get_summary(self):
         """
         Returns the first sentence of the first line of the class docstring
         """
-        return IntrospectorHelper.get_view_description(self.callback)
+        return self.documentation['summary']
 
 
 class BaseMethodIntrospector(object):
@@ -80,22 +113,36 @@ class BaseMethodIntrospector(object):
         self.callback = view_introspector.callback
         self.path = view_introspector.path
 
+        self.documentation = IntrospectorHelper.resolve_documentation_information(
+            self.callback,
+            documentation_parser.parse(self.retrieve_docstring())
+        )
+
     def get_serializer_class(self):
+        if 'serializer' in self.documentation and self.documentation['serializer'] is not None:
+            return self.documentation['serializer']
         return self.parent.get_serializer_class()
 
-    def get_summary(self):
-        docs = self.get_docs()
+    def get_deserializer_class(self):
+        if 'deserializer' in self.documentation and self.documentation['deserializer'] is not None:
+            return self.documentation['deserializer']
+        if 'serializer' in self.documentation and self.documentation['serializer'] is not None:
+            return self.documentation['serializer']
+        return self.parent.get_deserializer_class()
 
-        # If there is no docstring on the method, get class docs
-        if docs is None:
-            docs = self.parent.get_description()
-        docs = trim_docstring(docs).split('\n')[0]
-
-        return docs
+    def get_http_method(self):
+        return self.method
 
     def get_nickname(self):
         """ Returns the APIView's nickname """
         return get_view_name(self.callback).replace(' ', '_')
+
+    def get_summary(self):
+        if 'summary' in self.documentation and self.documentation['summary'] is not None:
+            return self.documentation['summary']
+
+        # If there is no docstring on the method, get class docs
+        return self.parent.get_summary()
 
     def get_notes(self):
         """
@@ -105,51 +152,15 @@ class BaseMethodIntrospector(object):
         """
         docstring = ""
 
-        class_docs = trim_docstring(get_view_description(self.callback))
-        method_docs = self.get_docs()
+        if 'description' in self.parent.documentation and self.parent.documentation['description'] is not None:
+            docstring += self.parent.documentation['description'] + '\n'
 
-        if class_docs is not None:
-            docstring += class_docs
-        if method_docs is not None:
-            docstring += '\n' + method_docs
+        if 'description' in self.documentation and self.documentation['description'] is not None:
+            docstring += self.documentation['description']
 
-        docstring = IntrospectorHelper.strip_params_from_docstring(docstring)
-        docstring = docstring.replace("\n\n", "<br/>")
+        docstring = docstring.strip().replace("\n\n", "<br/>")
 
         return docstring
-
-    def get_parameters(self):
-        """
-        Returns parameters for an API. Parameters are a combination of HTTP
-        query parameters as well as HTTP body parameters that are defined by
-        the DRF serializer fields
-        """
-        params = []
-        path_params = self.build_path_parameters()
-        body_params = self.build_body_parameters()
-        form_params = self.build_form_parameters()
-        query_params = self.build_query_params_from_docstring()
-
-        if path_params:
-            params += path_params
-
-        if self.get_http_method() not in ["GET", "DELETE"]:
-            params += form_params
-
-            if not form_params and body_params is not None:
-                params.append(body_params)
-
-        if query_params:
-            params += query_params
-
-        return params
-
-    def get_http_method(self):
-        return self.method
-
-    @abstractmethod
-    def get_docs(self):
-        return ''
 
     def retrieve_docstring(self):
         """
@@ -161,33 +172,27 @@ class BaseMethodIntrospector(object):
             return None
         return getattr(self.callback, method).__doc__
 
-    def build_body_parameters(self):
-        serializer = self.get_serializer_class()
-        serializer_name = IntrospectorHelper.get_serializer_name(serializer)
-
-        if serializer_name is None:
-            return
-
-        return {
-            'name': serializer_name,
-            'dataType': serializer_name,
-            'paramType': 'body',
-        }
-
-    def build_path_parameters(self):
+    def get_parameters(self):
         """
-        Gets the parameters from the URL
+        Returns parameters for an API. Parameters are a combination of HTTP
+        query parameters as well as HTTP body parameters that are defined by
+        the DRF serializer fields
         """
-        url_params = re.findall('/{([^}]*)}', self.path)
         params = []
 
-        for param in url_params:
-            params.append({
-                'name': param,
-                'dataType': 'string',
-                'paramType': 'path',
-                'required': True
-            })
+        params += self.build_path_parameters()
+        params += self.build_query_params()
+
+        if self.get_http_method() in ["GET", "DELETE"]:
+            return params
+
+        form_params = self.build_form_parameters()
+        params += form_params
+
+        if not form_params:
+            body_params = self.build_body_parameters()
+            if body_params is not None:
+                params.append(body_params)
 
         return params
 
@@ -195,8 +200,14 @@ class BaseMethodIntrospector(object):
         """
         Builds form parameters from the serializer class
         """
+        if 'post' in self.documentation and self.documentation['post'] is not None:
+            return self.documentation['post']
+        else:
+            return self.build_form_deserializer_parameters()
+
+    def build_form_deserializer_parameters(self):
         data = []
-        serializer = self.get_serializer_class()
+        serializer = self.get_deserializer_class()
 
         if serializer is None:
             return data
@@ -232,24 +243,42 @@ class BaseMethodIntrospector(object):
 
         return data
 
-    def build_query_params_from_docstring(self):
+    def build_body_parameters(self):
+        serializer = self.get_deserializer_class()
+        if serializer is None:
+            return None
+
+        return {
+            'name': serializer.__name__,
+            'dataType': serializer.__name__,
+            'paramType': 'body',
+        }
+
+    def build_path_parameters(self):
+        """
+        Gets the parameters from the URL
+        """
+        url_params = re.findall('/{([^}]*)}', self.path)
         params = []
 
-        docstring = self.retrieve_docstring() if None else ''
-        docstring += "\n" + get_view_description(self.callback)
+        for param in url_params:
+            params.append({
+                'name': param,
+                'dataType': 'string',
+                'paramType': 'path',
+                'required': True
+            })
 
-        if docstring is None:
-            return params
+        return params
 
-        split_lines = docstring.split('\n')
+    def build_query_params(self):
+        params = []
 
-        for line in split_lines:
-            param = line.split(' -- ')
-            if len(param) == 2:
-                params.append({'paramType': 'query',
-                               'name': param[0].strip(),
-                               'description': param[1].strip(),
-                               'dataType': ''})
+        if 'query' in self.documentation and self.documentation['query'] is not None:
+            params += self.documentation['query']
+
+        if 'query' in self.parent.documentation and self.parent.documentation['query'] is not None:
+            params += self.parent.documentation['query']
 
         return params
 
@@ -287,22 +316,15 @@ class ViewSetIntrospector(BaseViewIntrospector):
             raise RuntimeError('Unable to use callback invalid closure/function specified.')
 
         idx = self.pattern.callback.func_code.co_freevars.index('actions')
-        return self.pattern.callback.func_closure[idx].cell_contents
+        return self.pattern.callback.func_closure[idx].cell_contents if None else []
 
 
 class ViewSetMethodIntrospector(BaseMethodIntrospector):
+    """Handle ViewSet method introspection."""
+
     def __init__(self, view_introspector, method, http_method):
         super(ViewSetMethodIntrospector, self).__init__(view_introspector, method)
         self.http_method = http_method.upper()
 
     def get_http_method(self):
         return self.http_method
-
-    def get_docs(self):
-        """
-        Attempts to retrieve method specific docs for an
-        endpoint. If none are available, the class docstring
-        will be used
-        """
-        return self.retrieve_docstring()
-
