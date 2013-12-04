@@ -100,27 +100,28 @@ class rstLikeDocumentationParser(object):
                 continue
 
             line = line.strip()
-            if item_list_indent is False and len(line) > 2 and line[0] is ':' and line.find(':', 2) > 1:
-                section_begin = line.find(':', 2)
-                section_name = line[1:section_begin].lower().strip()
 
-                if section_name in variable_names:
-                    rtn[section_name] = line[section_begin+1:].strip()
-                    continue
-                if section_name in list_names:
-                    item_list = []
-                    rtn[section_name] = item_list
-                    item_list_indent = current_indent
-                    continue
-                ignore_indent = current_indent
-                collect_desc = False
-                continue
-
+            # handle main sections/variables
             if item_list_indent is False:
+                line_name, line_val = self._parse_variable(line)
+                if line_name:
+                    if line_name in variable_names:
+                        rtn[line_name] = line_val
+                        continue
+                    if line_name in list_names:
+                        item_list = []
+                        rtn[line_name] = item_list
+                        item_list_indent = current_indent
+                        continue
+                    ignore_indent = current_indent
+                    collect_desc = False
+                    continue
+
                 if collect_desc:
                     rtn['description'].append(line.strip())
                 continue
 
+            # handle section parameters
             if item_list_item_indent is False:
                 item_list_item_indent = current_indent
 
@@ -138,11 +139,24 @@ class rstLikeDocumentationParser(object):
                 item_list.append(item_list_item)
                 continue
 
+            # Check for param options
+            line_name, line_val = self._parse_variable(line)
+            if len(item_list_item['description']) == 0 and line_name:
+                if line_name == 'required':
+                    item_list_item['required'] = True
+                if line_name == 'enum' and line_val:
+                    item_list_item['enum'] = [x.strip() for x in line_val.split(',')]
+                if line_name in ['minimum','maximum'] and line_val and line_val.isdigit():
+                    item_list_item[line_name] = int(line_val)
+                continue
+
             item_list_item['description'].append(line)
 
+        return self._normalize(rtn, list_names)
 
+    def _normalize(self, rtn, section_names):
         rtn['description'] = '\n'.join(rtn['description']).strip()
-        for list_name in list_names:
+        for list_name in section_names:
             if list_name not in rtn or not rtn[list_name] or len(rtn[list_name]) == 0:
                 continue
 
@@ -152,30 +166,27 @@ class rstLikeDocumentationParser(object):
         rtn['summary'] = rtn['description'].split("\n")[0].split(".")[0]
 
         if 'query' in rtn and rtn['query']:
-            rtn['query'] = self._normalize_query(rtn['query'])
+            rtn['query'] = self._normalize_params(rtn['query'])
         if 'post' in rtn and rtn['post']:
-            rtn['post'] = self._normalize_post(rtn['post'])
-
+            rtn['post'] = self._normalize_params(rtn['post'])
         return rtn
 
-    def _normalize_query(self, params):
-        data = []
-        for param in params:
-            data.append({
-                'paramType': 'query',
-                'name': param['name'],
-                'description': param['description'],
-                'dataType': param['type'] or ''
-            })
-        return data
+    def _parse_variable(self, line):
+        """
+        Extract a variable or section from a line.
+        """
+        if len(line) > 2 and line[0] is ':' and line.find(':', 2) > 1:
+            val_idx = line.find(':', 2)
+            name = line[1:val_idx].lower().strip()
+            val = line[val_idx+1:].strip()
 
-    def _normalize_post(self, params):
-        data = []
+            return name, val or None
+        return None, None
+
+    def _normalize_params(self, params):
         for param in params:
-            data.append({
-                'paramType': 'form',
-                'name': param['name'],
-                'description': param['description'],
-                'dataType': param['type'] or ''
-            })
-        return data
+            param['paramType'] = 'form'
+            if ('type' not in param or not param['type']) and \
+                ('dataType' not in param or not param['dataType']):
+                param['type'] = param['dataType'] = ""
+        return params

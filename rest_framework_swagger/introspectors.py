@@ -316,7 +316,7 @@ class ViewSetIntrospector(BaseViewIntrospector):
             raise RuntimeError('Unable to use callback invalid closure/function specified.')
 
         idx = self.pattern.callback.func_code.co_freevars.index('actions')
-        return self.pattern.callback.func_closure[idx].cell_contents if None else []
+        return self.pattern.callback.func_closure[idx].cell_contents if not None else []
 
 
 class ViewSetMethodIntrospector(BaseMethodIntrospector):
