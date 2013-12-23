@@ -64,6 +64,10 @@ SWAGGER_SETTINGS = {
     "api_key": '', # An API key
     "is_authenticated": False,  # Set to True to enforce user authentication,
     "is_superuser": False,  # Set to True to enforce admin only access
+
+    'DOCUMENTATION_PARSER': 'rest_framework_swagger.docparsers.SimpleDocumentationParser', # The doc block parser to use
+    'DOCUMENTATION_FORMATTER': 'rest_framework_swagger.docformatters.SimpleFormatter', # The doc formatter parser to use
+    'URL_PARSER': 'rest_framework_swagger.urlparser.UrlParser'
 }
 ```
 
@@ -76,6 +80,14 @@ This project is built on the [Django REST Framework Docs](https://github.com/mar
 * Field default values, minimum, maximum, read-only and required attributes
 * URL parameters (ie. /product/{id})
 * Field `help_text` property is used to create the description from the serializer or model.
+* Method documentation parsers
+
+### Default Documentation Parser
+
+The default documentation parser handles the following:
+
+* Method summary
+* Method implementation notes
 * Query parameters (user-defined) - Custom parameters. It is possible to customize a parameter list for your
     API. To do so, include a key-value pair in the docstring of your API class
     delimited by two hyphens ('--'). Example: 'start_time -- The first reading':
@@ -84,9 +96,39 @@ This project is built on the [Django REST Framework Docs](https://github.com/mar
     class Countries(APIView):
         """
         This text is the description for this API
+        These are some extra remarks
+
         param1 -- A first parameter
         param2 -- A second parameter
         """
+```
+
+### RST Like Documentation Parser
+
+The rst like documentation parser can be configured by setting `SWAGGER_SETTINGS = { 'DOCUMENTATION_PARSER': 'rest_framework_swagger.docparsers.RstLikeDocumentationParser' }`.
+The parser handles the following:
+
+* Method summary
+* Method implementation notes
+* Query parameters (user-defined)
+* Post parameters (user-defined)
+* serializer (user-defined)
+* deserializer (user-defined)
+
+```python
+class Countries(APIView):
+    """
+    This text is the description for this API
+
+    :Query:
+      param1
+          :required:
+          A get parameter description
+      param2 : int
+          A integer get parameter description
+
+    :serializer: .serializers.CountrySerializer
+    """
 ```
 
 ## Example
