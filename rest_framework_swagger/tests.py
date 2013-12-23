@@ -13,7 +13,7 @@ from rest_framework.generics import ListCreateAPIView
 from rest_framework import serializers
 from rest_framework.routers import DefaultRouter
 from rest_framework.viewsets import ModelViewSet
-from rest_framework_swagger.docparsers import SimpleDocumentationParser
+from rest_framework_swagger.docparsers import SimpleDocumentationParser, rstLikeDocumentationParser
 
 from .urlparser import UrlParser
 from .docgenerator import DocumentationGenerator
@@ -319,22 +319,14 @@ class IntrospectorHelperTest(TestCase):
 
 
 class SimpleDocumentationParserTest(TestCase):
-    def test_strip_params_from_docstring(self):
-        class AnAPIView(APIView):
-            """
-            My comments are here
+    def setUp(self):
+        self.parser = SimpleDocumentationParser()
 
-            param -- my param
-            """
-            pass
-        parser = SimpleDocumentationParser()
-        docstring = parser.strip_params_from_docstring(trim_docstring(AnAPIView.__doc__))
+    def tearDown(self):
+        self.parser = None
 
-        self.assertEqual("My comments are here<br/>", docstring)
-
-    def test_strip_params_from_docstring_multiline(self):
-        class TestView(APIView):
-            """
+    def test_parse(self):
+        docstring = """
             Creates a new user.
             Returns: token - auth token
 
@@ -346,13 +338,107 @@ class SimpleDocumentationParserTest(TestCase):
             zip_code -- zip code 10 chars, optional
             phone -- phone number in US format (XXX-XXX-XXXX), optional
             """
-            pass
+        expected = {
+            'query': [
+                {'dataType': '', 'paramType': 'query', 'name': 'email', 'description': 'e-mail address'},
+                {'dataType': '', 'paramType': 'query', 'name': 'password', 'description': 'password, optional'},
+                {'dataType': '', 'paramType': 'query', 'name': 'city', 'description': 'city, optional'},
+                {'dataType': '', 'paramType': 'query', 'name': 'street', 'description': 'street, optional'},
+                {'dataType': '', 'paramType': 'query', 'name': 'number', 'description': 'house number, optional'},
+                {'dataType': '', 'paramType': 'query', 'name': 'zip_code', 'description': 'zip code 10 chars, optional'},
+                {'dataType': '', 'paramType': 'query', 'name': 'phone', 'description': 'phone number in US format (XXX-XXX-XXXX), optional'}
+            ],
+            'description': 'Creates a new user.<br/>Returns: token - auth token<br/>',
+            'summary': 'Creates a new user'
+        }
+        self.assertDictEqual(expected, self.parser.parse(docstring))
 
-        parser = SimpleDocumentationParser()
-        docstring = parser.strip_params_from_docstring(TestView.__doc__)
+    def test_strip_params_from_docstring(self):
+        docstring = """
+            My comments are here
+
+            param -- my param
+            """
+        docstring = self.parser.strip_params_from_docstring(trim_docstring(docstring))
+
+        self.assertEqual("My comments are here<br/>", docstring)
+
+    def test_strip_params_from_docstring_multiline(self):
+        docstring = """
+            Creates a new user.
+            Returns: token - auth token
+
+            email -- e-mail address
+            password -- password, optional
+            city -- city, optional
+            street -- street, optional
+            number -- house number, optional
+            zip_code -- zip code 10 chars, optional
+            phone -- phone number in US format (XXX-XXX-XXXX), optional
+            """
+        docstring = self.parser.strip_params_from_docstring(docstring)
 
         expected = 'Creates a new user.<br/>Returns: token - auth token<br/>'
         self.assertEqual(expected, docstring)
+
+
+class RstLikeDocumentationParserTest(TestCase):
+    def setUp(self):
+        self.parser = rstLikeDocumentationParser()
+
+    def tearDown(self):
+        self.parser = None
+
+    def test_parse(self):
+        docstring = """
+            Creates a new user.
+            Returns: token - auth token
+            """
+        expected = {
+            'query': None,
+            'description': 'Creates a new user.\nReturns: token - auth token',
+            'summary': 'Creates a new user'
+        }
+        self.assertDictEqual(expected, self.parser.parse(docstring))
+
+        docstring = """
+            :Query:
+              size
+                  The size of the fox (in meters)
+              weight : float
+                  :required:
+                  The weight of the fox (in stones)
+              age : int
+                  The age of the fox (in years)
+
+                  This may also be None
+
+            :Post:
+              size
+                  The size of the fox (in meters)
+
+            :serializer: .serializer
+            :deserializer: .deserializer
+
+            :unknown:
+                test
+                    test
+            """
+        expected = {
+            'description': '',
+            'summary': '',
+            'query': [
+                {'dataType': '', 'paramType': 'form', 'type': '', 'name': 'size', 'description': 'The size of the fox (in meters)'},
+                {'paramType': 'form', 'required': True, 'type': 'float', 'name': 'weight', 'description': 'The weight of the fox (in stones)'},
+                {'paramType': 'form', 'type': 'int', 'name': 'age', 'description': 'The age of the fox (in years)\n\nThis may also be None'}
+            ],
+            'post': [
+                {'dataType': '', 'paramType': 'form', 'type': '', 'name': 'size', 'description': 'The size of the fox (in meters)'}
+            ],
+            'serializer': '.serializer',
+            'deserializer': '.deserializer',
+        }
+        self.assertDictEqual(expected, self.parser.parse(docstring))
 
 
 class ViewSetTestIntrospectorTest(TestCase):
