@@ -28,8 +28,8 @@ class SwaggerSettings(object):
     A settings object, that allows API settings to be accessed as properties.
     For example:
 
-        from rest_framework.settings import api_settings
-        print api_settings.DEFAULT_RENDERER_CLASSES
+        from rest_framework_swagger.settings import swagger_settings
+        print api_settings.api_version
 
     Any setting with string import paths will be automatically resolved
     and return the class, rather than the string literal.

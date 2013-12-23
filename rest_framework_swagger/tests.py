@@ -4,7 +4,6 @@ from django.conf import settings
 from django.conf.urls import patterns, url, include
 from django.contrib.auth.models import User
 from django.contrib.admindocs.utils import trim_docstring
-from django.http import HttpRequest
 from django.test import TestCase
 from django.utils.importlib import import_module
 from django.views.generic import View
@@ -14,6 +13,7 @@ from rest_framework.generics import ListCreateAPIView
 from rest_framework import serializers
 from rest_framework.routers import DefaultRouter
 from rest_framework.viewsets import ModelViewSet
+from rest_framework_swagger.docparsers import SimpleDocumentationParser
 
 from .urlparser import UrlParser
 from .docgenerator import DocumentationGenerator
@@ -294,6 +294,31 @@ class DocumentationGeneratorTest(TestCase):
 
 
 class IntrospectorHelperTest(TestCase):
+    def test_get_serializer_name(self):
+        self.assertIsNone(IntrospectorHelper.get_serializer_name(None))
+
+        self.assertEqual('IntrospectorHelperTest', IntrospectorHelper.get_serializer_name(IntrospectorHelperTest))
+
+    def test_import_from_string(self):
+        # Test invalid arguments
+        self.assertEqual(None, IntrospectorHelper.import_from_string('', None))
+        self.assertEqual(None, IntrospectorHelper.import_from_string('CommentSerializer', None))
+
+        # Test valid arguments
+        self.assertEqual(CommentSerializer, IntrospectorHelper.import_from_string('CommentSerializer', self))
+        self.assertEqual(CommentSerializer, IntrospectorHelper.import_from_string('.tests.CommentSerializer', self))
+
+        # Test invalid import arguments
+        self.assertEqual(CommentSerializer, IntrospectorHelper.import_from_string('..rest_framework_swagger.tests.CommentSerializer', self))
+        self.assertEqual(None, IntrospectorHelper.import_from_string('...rest_framework_swagger.tests.CommentSerializer', self))
+        self.assertEqual(None, IntrospectorHelper.import_from_string('ImNotHere', self))
+
+        class FakeModule:
+            __module__ = 'evil.test'
+        self.assertEqual(None, IntrospectorHelper.import_from_string('CommentSerializer', FakeModule))
+
+
+class SimpleDocumentationParserTest(TestCase):
     def test_strip_params_from_docstring(self):
         class AnAPIView(APIView):
             """
@@ -302,8 +327,8 @@ class IntrospectorHelperTest(TestCase):
             param -- my param
             """
             pass
-
-        docstring = IntrospectorHelper.strip_params_from_docstring(trim_docstring(AnAPIView.__doc__))
+        parser = SimpleDocumentationParser()
+        docstring = parser.strip_params_from_docstring(trim_docstring(AnAPIView.__doc__))
 
         self.assertEqual("My comments are here<br/>", docstring)
 
@@ -323,9 +348,10 @@ class IntrospectorHelperTest(TestCase):
             """
             pass
 
-        docstring = IntrospectorHelper.strip_params_from_docstring(TestView.__doc__)
-        expected = 'Creates a new user.<br/>Returns: token - auth token<br/>'
+        parser = SimpleDocumentationParser()
+        docstring = parser.strip_params_from_docstring(TestView.__doc__)
 
+        expected = 'Creates a new user.<br/>Returns: token - auth token<br/>'
         self.assertEqual(expected, docstring)
 
 
@@ -379,9 +405,13 @@ class ViewSetTestIntrospectorTest(TestCase):
 
 
 class BaseViewIntrospectorTest(TestCase):
+    def test_get_summary(self):
+        introspector = APIViewIntrospector(MockApiView, '/', RegexURLResolver(r'^/', ''))
+        self.assertEqual('A Test View', introspector.get_summary())
+
     def test_get_description(self):
         introspector = APIViewIntrospector(MockApiView, '/', RegexURLResolver(r'^/', ''))
-        self.assertEqual('A Test View', introspector.get_description())
+        self.assertEqual('A Test View\n\nThis is more commenting', introspector.get_description())
 
     def test_get_serializer_class(self):
         introspector = APIViewIntrospector(MockApiView, '/', RegexURLResolver(r'^/', ''))

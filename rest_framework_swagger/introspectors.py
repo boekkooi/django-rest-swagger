@@ -1,8 +1,4 @@
 """Handles the instrospection of REST Framework Views and ViewSets."""
-from modulefinder import ModuleFinder, READ_MODE
-import os
-import sys
-import imp
 from abc import ABCMeta, abstractmethod
 from django.utils import importlib
 import re
@@ -34,11 +30,11 @@ class IntrospectorHelper(object):
 
     @staticmethod
     def import_from_string(name, callback):
-        if not name:
+        if not name or not callback or not hasattr(callback, '__module__'):
             return None
 
+        # TODO add support for import names (`from .. import .. as ..`) maybe use ModuleFinder?
         if name.find('.') == -1:
-            # TODO add support for import names (`from .. import .. as ..`) maybe use ModuleFinder?
             # within current module/file
             class_name = name
             module_path = callback.__module__
@@ -48,11 +44,19 @@ class IntrospectorHelper(object):
                 module_path = callback.__module__
                 while name[0] == '.':
                     idx = module_path.rfind('.')
-                    if len(name) == 1 or idx == -1:
-                        return None
-                    module_path = module_path[:idx]
+                    if idx == -1:
+                        if module_path == '':
+                            return None
+                        module_path = ''
+                    else:
+                        module_path = module_path[:idx]
+
                     name = name[1:]
-                name = module_path + '.' + name
+                    if len(name) <= 1:
+                        return None
+
+                if module_path:
+                    name = module_path + '.' + name
 
             # extract class and module
             parts = name.split('.')
@@ -60,9 +64,11 @@ class IntrospectorHelper(object):
 
         try:
             module = importlib.import_module(module_path)
-            return getattr(module, class_name)
+            if hasattr(module, class_name):
+                return getattr(module, class_name)
         except ImportError as e:
-            return None
+            pass
+        return None
 
 
 class BaseViewIntrospector(object):
