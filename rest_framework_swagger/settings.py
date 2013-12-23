@@ -12,14 +12,16 @@ DEFAULTS = {
     'is_authenticated': False,
     'is_superuser': False,
 
-    'DEFAULT_DOCUMENTATION_PARSER_CLASSES': 'rest_framework_swagger.docparsers.SimpleDocumentationParser',
-    'DEFAULT_URL_PARSER_CLASSES': 'rest_framework_swagger.urlparser.UrlParser'
+    'DOCUMENTATION_PARSER': 'rest_framework_swagger.docparsers.SimpleDocumentationParser',
+    'DOCUMENTATION_FORMATTER': 'rest_framework_swagger.docformatters.SimpleFormatter',
+    'URL_PARSER': 'rest_framework_swagger.urlparser.UrlParser'
 }
 
 # List of settings that may be in string import notation.
 IMPORT_STRINGS = (
-    'DEFAULT_DOCUMENTATION_PARSER_CLASSES',
-    'DEFAULT_URL_PARSER_CLASSES',
+    'DOCUMENTATION_PARSER',
+    'DOCUMENTATION_FORMATTER',
+    'URL_PARSER',
 )
 
 

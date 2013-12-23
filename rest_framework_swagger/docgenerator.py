@@ -3,8 +3,11 @@ from django.http import HttpRequest
 
 from rest_framework import viewsets
 
+from .settings import swagger_settings
 from .introspectors import APIViewIntrospector, \
     ViewSetIntrospector, BaseMethodIntrospector, IntrospectorHelper
+
+formatter = getattr(swagger_settings, 'DOCUMENTATION_FORMATTER')().format
 
 
 class DocumentationGenerator(object):
@@ -18,7 +21,7 @@ class DocumentationGenerator(object):
             api_info = self.retrieve_api_info(api)
 
             apis_docs.append({
-                'description': api_info['description'],
+                'description': formatter(api_info['description']),
                 'path': api['path'],
                 'operations': api_info['operations'],
             })
@@ -60,7 +63,7 @@ class DocumentationGenerator(object):
                 models[deserializer_name] = self.generate_model(deserializer)
 
         return {
-            'description': introspector.get_description(),
+            'description': formatter(introspector.get_description()),
             'operations': operations,
             'models': models
         }
@@ -87,7 +90,7 @@ class DocumentationGenerator(object):
             'httpMethod': introspector.get_http_method(),
             'summary': introspector.get_summary(),
             'nickname': introspector.get_nickname(),
-            'notes': introspector.get_notes(),
+            'notes': formatter(introspector.get_notes()),
             'responseClass': serializer_name,
         }
 

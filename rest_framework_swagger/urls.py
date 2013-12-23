@@ -1,6 +1,6 @@
 from django.conf.urls import patterns
 from django.conf.urls import url
-from rest_framework_swagger.views import SwaggerResourcesView, SwaggerApiView, SwaggerUIView
+from .views import SwaggerResourcesView, SwaggerApiView, SwaggerUIView
 
 
 urlpatterns = patterns('',

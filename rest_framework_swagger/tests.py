@@ -13,10 +13,10 @@ from rest_framework.generics import ListCreateAPIView
 from rest_framework import serializers
 from rest_framework.routers import DefaultRouter
 from rest_framework.viewsets import ModelViewSet
-from rest_framework_swagger.docparsers import SimpleDocumentationParser, rstLikeDocumentationParser
 
 from .urlparser import UrlParser
 from .docgenerator import DocumentationGenerator
+from .docparsers import SimpleDocumentationParser, RstLikeDocumentationParser
 from .introspectors import ViewSetIntrospector, APIViewIntrospector, IntrospectorHelper, APIViewMethodIntrospector
 
 
@@ -348,7 +348,7 @@ class SimpleDocumentationParserTest(TestCase):
                 {'dataType': '', 'paramType': 'query', 'name': 'zip_code', 'description': 'zip code 10 chars, optional'},
                 {'dataType': '', 'paramType': 'query', 'name': 'phone', 'description': 'phone number in US format (XXX-XXX-XXXX), optional'}
             ],
-            'description': 'Creates a new user.<br/>Returns: token - auth token<br/>',
+            'description': 'Creates a new user.\nReturns: token - auth token',
             'summary': 'Creates a new user'
         }
         self.assertDictEqual(expected, self.parser.parse(docstring))
@@ -361,7 +361,7 @@ class SimpleDocumentationParserTest(TestCase):
             """
         docstring = self.parser.strip_params_from_docstring(trim_docstring(docstring))
 
-        self.assertEqual("My comments are here<br/>", docstring)
+        self.assertEqual("My comments are here", docstring)
 
     def test_strip_params_from_docstring_multiline(self):
         docstring = """
@@ -378,13 +378,13 @@ class SimpleDocumentationParserTest(TestCase):
             """
         docstring = self.parser.strip_params_from_docstring(docstring)
 
-        expected = 'Creates a new user.<br/>Returns: token - auth token<br/>'
+        expected = 'Creates a new user.\nReturns: token - auth token'
         self.assertEqual(expected, docstring)
 
 
 class RstLikeDocumentationParserTest(TestCase):
     def setUp(self):
-        self.parser = rstLikeDocumentationParser()
+        self.parser = RstLikeDocumentationParser()
 
     def tearDown(self):
         self.parser = None

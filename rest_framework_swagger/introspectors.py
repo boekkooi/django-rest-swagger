@@ -5,9 +5,9 @@ import re
 
 from rest_framework.views import get_view_name
 
-from rest_framework_swagger.settings import swagger_settings
+from .settings import swagger_settings
 
-documentation_parser = getattr(swagger_settings, 'DEFAULT_DOCUMENTATION_PARSER_CLASSES')()
+documentation_parser = getattr(swagger_settings, 'DOCUMENTATION_PARSER')()
 
 
 class IntrospectorHelper(object):
@@ -159,14 +159,12 @@ class BaseMethodIntrospector(object):
         docstring = ""
 
         if 'description' in self.parent.documentation and self.parent.documentation['description'] is not None:
-            docstring += self.parent.documentation['description'] + '\n'
+            docstring += self.parent.documentation['description'] + '\n\n'
 
         if 'description' in self.documentation and self.documentation['description'] is not None:
             docstring += self.documentation['description']
 
-        docstring = docstring.strip().replace("\n\n", "<br/>")
-
-        return docstring
+        return docstring.strip()
 
     def retrieve_docstring(self):
         """

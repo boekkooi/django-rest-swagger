@@ -47,10 +47,10 @@ class SimpleDocumentationParser(object):
         if cut_off is not None:
             split_lines = split_lines[0:cut_off]
 
-        return "<br/>".join(split_lines)
+        return '\n'.join(split_lines).strip()
 
 
-class rstLikeDocumentationParser(object):
+class RstLikeDocumentationParser(object):
     def parse(self, doc):
         rtn = {
             'query': None,

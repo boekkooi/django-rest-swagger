@@ -4,7 +4,7 @@ from django.core.urlresolvers import RegexURLResolver, RegexURLPattern
 from django.contrib.admindocs.views import simplify_regex
 from rest_framework.views import APIView
 
-from rest_framework_swagger.apidocview import APIDocView
+from .apidocview import APIDocView
 
 
 class UrlParser(object):

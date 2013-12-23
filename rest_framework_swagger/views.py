@@ -5,11 +5,11 @@ from django.core.exceptions import PermissionDenied
 
 from rest_framework.views import Response
 
-from rest_framework_swagger.apidocview import APIDocView
-from rest_framework_swagger.docgenerator import DocumentationGenerator
-from rest_framework_swagger.settings import swagger_settings
+from .apidocview import APIDocView
+from .docgenerator import DocumentationGenerator
+from .settings import swagger_settings
 
-UrlParser = getattr(swagger_settings, 'DEFAULT_URL_PARSER_CLASSES')
+UrlParser = getattr(swagger_settings, 'URL_PARSER')
 
 
 class SwaggerUIView(View):
