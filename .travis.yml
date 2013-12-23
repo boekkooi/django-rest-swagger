@@ -1,0 +1,22 @@
+language: python
+
+python:
+  - "2.6"
+  - "2.7"
+  - "3.2"
+  - "3.3"
+
+env:
+  - DJANGO="django" DJANGO_REST_FRAMEWORK="djangorestframework"
+  - DJANGO="django==1.6" DJANGO_REST_FRAMEWORK="djangorestframework==2.3.10"
+  - DJANGO="django==1.5.5" DJANGO_REST_FRAMEWORK="djangorestframework==2.3.8"
+  - DJANGO="django==1.5.1" DJANGO_REST_FRAMEWORK="djangorestframework==2.3.5"
+  - DJANGO="django==1.5.0" DJANGO_REST_FRAMEWORK="djangorestframework==2.3.4"
+
+install:
+  - pip install $DJANGO
+  - pip install $DJANGO_REST_FRAMEWORK
+  - export PYTHONPATH=.
+
+script:
+  - python rest_framework_swagger/runtests/runtests.py

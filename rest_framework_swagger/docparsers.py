@@ -65,10 +65,15 @@ class RstLikeDocumentationParser(object):
         # TODO allow for types array or object (or similar) within the lists
         list_names = ['query', 'post']
 
-        lines = doc.split('\n')
+        lines = trim_docstring(doc).split('\n')
 
         collect_desc = True
-        ignore_indent = sys.maxint
+
+        if sys.version_info < (3,):
+            ignore_indent = sys.maxint
+        else:
+            ignore_indent = sys.maxsize
+
         item_list = item_list_indent = item_list_item = item_list_item_indent = False
 
         last_indent = -1
@@ -175,7 +180,7 @@ class RstLikeDocumentationParser(object):
         """
         Extract a variable or section from a line.
         """
-        if len(line) > 2 and line[0] is ':' and line.find(':', 2) > 1:
+        if len(line) > 2 and line[0] == ':' and line.find(':', 2) > 1:
             val_idx = line.find(':', 2)
             name = line[1:val_idx].lower().strip()
             val = line[val_idx+1:].strip()

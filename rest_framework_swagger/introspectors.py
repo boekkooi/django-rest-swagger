@@ -1,5 +1,6 @@
 """Handles the instrospection of REST Framework Views and ViewSets."""
 from abc import ABCMeta, abstractmethod
+import sys
 from django.utils import importlib
 import re
 
@@ -313,14 +314,22 @@ class ViewSetIntrospector(BaseViewIntrospector):
             yield ViewSetMethodIntrospector(self, methods[method], method)
 
     def _resolve_methods(self):
-        if not hasattr(self.pattern.callback, 'func_code') or \
-                not hasattr(self.pattern.callback, 'func_closure') or \
-                not hasattr(self.pattern.callback.func_code, 'co_freevars') or \
-                'actions' not in self.pattern.callback.func_code.co_freevars:
-            raise RuntimeError('Unable to use callback invalid closure/function specified.')
+        if sys.version_info < (3,):
+            if not hasattr(self.pattern.callback, 'func_code') or \
+                    not hasattr(self.pattern.callback, 'func_closure') or \
+                    not hasattr(self.pattern.callback.func_code, 'co_freevars') or \
+                    'actions' not in self.pattern.callback.func_code.co_freevars:
+                raise RuntimeError('Unable to use callback invalid closure/function specified.')
+            idx = self.pattern.callback.func_code.co_freevars.index('actions')
+            return self.pattern.callback.func_closure[idx].cell_contents if not None else []
 
-        idx = self.pattern.callback.func_code.co_freevars.index('actions')
-        return self.pattern.callback.func_closure[idx].cell_contents if not None else []
+        if not hasattr(self.pattern.callback, '__code__') or \
+                not hasattr(self.pattern.callback, '__closure__') or \
+                not hasattr(self.pattern.callback.__code__, 'co_freevars') or \
+                'actions' not in self.pattern.callback.__code__.co_freevars:
+            raise RuntimeError('Unable to use callback invalid closure/function specified.')
+        idx = self.pattern.callback.__code__.co_freevars.index('actions')
+        return self.pattern.callback.__closure__[idx].cell_contents if not None else []
 
 
 class ViewSetMethodIntrospector(BaseMethodIntrospector):
