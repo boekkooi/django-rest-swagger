@@ -17,7 +17,7 @@ from rest_framework.viewsets import ModelViewSet
 from .urlparser import UrlParser
 from .docgenerator import DocumentationGenerator
 from .docparsers import SimpleDocumentationParser, RstLikeDocumentationParser
-from .introspectors import ViewSetIntrospector, APIViewIntrospector, IntrospectorHelper, APIViewMethodIntrospector
+from .introspectors import ViewSetIntrospector, APIViewIntrospector, IntrospectorHelper, APIViewMethodIntrospector, SerializerIntrospector
 
 
 class MockApiView(APIView):
@@ -293,12 +293,57 @@ class DocumentationGeneratorTest(TestCase):
         self.assertGreater(len(called), 0)
 
 
+    def test_generate_method_body_parameters(self):
+        class SerializedAPI(ListCreateAPIView):
+            serializer_class = CommentSerializer
+
+        docgen = DocumentationGenerator()
+        class_introspector = ViewSetIntrospector(SerializedAPI, '/', RegexURLResolver(r'^/$', ''))
+        introspector = APIViewMethodIntrospector(class_introspector, 'POST')
+
+        params = docgen._generate_method_body_parameters(introspector)
+
+        self.assertEqual('CommentSerializer', params[0]['name'])
+
+    def test_build_form_parameters(self):
+        class SerializedAPI(ListCreateAPIView):
+            serializer_class = CommentSerializer
+
+        docgen = DocumentationGenerator()
+        class_introspector = ViewSetIntrospector(SerializedAPI, '/', RegexURLResolver(r'^/$', ''))
+        introspector = APIViewMethodIntrospector(class_introspector, 'POST')
+
+        params = docgen._generate_method_form_parameters(introspector)
+
+        self.assertEqual(len(CommentSerializer().get_fields()), len(params))
+
+    def test_build_form_parameters_allowable_values(self):
+
+        class MySerializer(serializers.Serializer):
+            content = serializers.CharField(max_length=200, min_length=10, default="Vandalay Industries")
+            a_read_only_field = serializers.BooleanField(read_only=True)
+
+        class MyAPIView(ListCreateAPIView):
+            serializer_class = MySerializer
+
+        docgen = DocumentationGenerator()
+        class_introspector = ViewSetIntrospector(MyAPIView, '/', RegexURLResolver(r'^/$', ''))
+        introspector = APIViewMethodIntrospector(class_introspector, 'POST')
+
+        params = docgen._generate_method_form_parameters(introspector)
+
+        self.assertEqual(1, len(params))  # Read only field is ignored
+        param = params[0]
+
+        self.assertEqual('content', param['name'])
+        self.assertEqual('form', param['paramType'])
+        self.assertEqual(True, param['required'])
+        self.assertEqual(200, param['maximum'])
+        self.assertEqual(10, param['minimum'])
+        self.assertEqual('Vandalay Industries', param['defaultValue'])
+
+
 class IntrospectorHelperTest(TestCase):
-    def test_get_serializer_name(self):
-        self.assertIsNone(IntrospectorHelper.get_serializer_name(None))
-
-        self.assertEqual('IntrospectorHelperTest', IntrospectorHelper.get_serializer_name(IntrospectorHelperTest))
-
     def test_import_from_string(self):
         # Test invalid arguments
         self.assertEqual(None, IntrospectorHelper.import_from_string('', None))
@@ -316,6 +361,14 @@ class IntrospectorHelperTest(TestCase):
         class FakeModule:
             __module__ = 'evil.test'
         self.assertEqual(None, IntrospectorHelper.import_from_string('CommentSerializer', FakeModule))
+
+
+class SerializerIntrospectorTest(TestCase):
+    def test_get_identifier(self):
+        self.assertIsNone(SerializerIntrospector.get_identifier(None))
+
+        self.assertEqual('CommentSerializer', SerializerIntrospector.get_identifier(CommentSerializer))
+        self.assertEqual('CommentSerializer', SerializerIntrospector.get_identifier(CommentSerializer()))
 
 
 class SimpleDocumentationParserTest(TestCase):
@@ -541,46 +594,3 @@ class BaseMethodIntrospectorTest(TestCase):
         method_docs = introspector.get_summary()
 
         self.assertEqual("My comment", method_docs)
-
-    def test_build_body_parameters(self):
-        class SerializedAPI(ListCreateAPIView):
-            serializer_class = CommentSerializer
-
-        class_introspector = ViewSetIntrospector(SerializedAPI, '/', RegexURLResolver(r'^/$', ''))
-        introspector = APIViewMethodIntrospector(class_introspector, 'POST')
-        params = introspector.build_body_parameters()
-
-        self.assertEqual('CommentSerializer', params['name'])
-
-    def test_build_form_parameters(self):
-        class SerializedAPI(ListCreateAPIView):
-            serializer_class = CommentSerializer
-
-        class_introspector = ViewSetIntrospector(SerializedAPI, '/', RegexURLResolver(r'^/$', ''))
-        introspector = APIViewMethodIntrospector(class_introspector, 'POST')
-        params = introspector.build_form_parameters()
-
-        self.assertEqual(len(CommentSerializer().get_fields()), len(params))
-
-    def test_build_form_parameters_allowable_values(self):
-
-        class MySerializer(serializers.Serializer):
-            content = serializers.CharField(max_length=200, min_length=10, default="Vandalay Industries")
-            a_read_only_field = serializers.BooleanField(read_only=True)
-
-        class MyAPIView(ListCreateAPIView):
-            serializer_class = MySerializer
-
-        class_introspector = ViewSetIntrospector(MyAPIView, '/', RegexURLResolver(r'^/$', ''))
-        introspector = APIViewMethodIntrospector(class_introspector, 'POST')
-        params = introspector.build_form_parameters()
-
-        self.assertEqual(1, len(params))  # Read only field is ignored
-        param = params[0]
-
-        self.assertEqual('content', param['name'])
-        self.assertEqual('form', param['paramType'])
-        self.assertEqual(True, param['required'])
-        self.assertEqual(200, param['allowableValues']['max'])
-        self.assertEqual(10, param['allowableValues']['min'])
-        self.assertEqual('Vandalay Industries', param['defaultValue'])

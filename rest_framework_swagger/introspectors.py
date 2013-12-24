@@ -1,5 +1,6 @@
 """Handles the instrospection of REST Framework Views and ViewSets."""
 from abc import ABCMeta, abstractmethod
+import inspect
 import sys
 from django.utils import importlib
 import re
@@ -13,13 +14,6 @@ documentation_parser = getattr(swagger_settings, 'DOCUMENTATION_PARSER')()
 
 class IntrospectorHelper(object):
     __metaclass__ = ABCMeta
-
-    @staticmethod
-    def get_serializer_name(serializer):
-        if serializer is None:
-            return None
-
-        return serializer.__name__
 
     @staticmethod
     def resolve_documentation_information(callback, documentation):
@@ -67,7 +61,7 @@ class IntrospectorHelper(object):
             module = importlib.import_module(module_path)
             if hasattr(module, class_name):
                 return getattr(module, class_name)
-        except ImportError as e:
+        except ImportError:
             pass
         return None
 
@@ -180,116 +174,6 @@ class BaseMethodIntrospector(object):
     def get_response_messages(self):
         return self.documentation['responses'] if 'responses' in self.documentation else None
 
-    def get_parameters(self):
-        """
-        Returns parameters for an API. Parameters are a combination of HTTP
-        query parameters as well as HTTP body parameters that are defined by
-        the DRF serializer fields
-        """
-        params = []
-
-        params += self.build_path_parameters()
-        params += self.build_query_params()
-
-        if self.get_http_method() in ["GET", "DELETE"]:
-            return params
-
-        form_params = self.build_form_parameters()
-        params += form_params
-
-        if not form_params:
-            body_params = self.build_body_parameters()
-            if body_params is not None:
-                params.append(body_params)
-
-        return params
-
-    def build_form_parameters(self):
-        """
-        Builds form parameters from the serializer class
-        """
-        if 'post' in self.documentation and self.documentation['post'] is not None:
-            return self.documentation['post']
-        else:
-            return self.build_form_deserializer_parameters()
-
-    def build_form_deserializer_parameters(self):
-        data = []
-        serializer = self.get_deserializer_class()
-
-        if serializer is None:
-            return data
-
-        fields = serializer().get_fields()
-
-        for name, field in fields.items():
-
-            if getattr(field, 'read_only', False):
-                continue
-
-            data_type = field.type_label
-            max_length = getattr(field, 'max_length', None)
-            min_length = getattr(field, 'min_length', None)
-            allowable_values = None
-
-            if max_length is not None or min_length is not None:
-                allowable_values = {
-                    'max': max_length,
-                    'min': min_length,
-                    'valueType': 'RANGE'
-                }
-
-            data.append({
-                'paramType': 'form',
-                'name': name,
-                'dataType': data_type,
-                'allowableValues': allowable_values,
-                'description': getattr(field, 'help_text', ''),
-                'defaultValue': getattr(field, 'default', None),
-                'required': getattr(field, 'required', None)
-            })
-
-        return data
-
-    def build_body_parameters(self):
-        serializer = self.get_deserializer_class()
-        if serializer is None:
-            return None
-
-        return {
-            'name': serializer.__name__,
-            'dataType': serializer.__name__,
-            'paramType': 'body',
-        }
-
-    def build_path_parameters(self):
-        """
-        Gets the parameters from the URL
-        """
-        url_params = re.findall('/{([^}]*)}', self.path)
-        params = []
-
-        for param in url_params:
-            params.append({
-                'name': param,
-                'dataType': 'string',
-                'paramType': 'path',
-                'required': True
-            })
-
-        return params
-
-    def build_query_params(self):
-        params = []
-
-        if 'query' in self.documentation and self.documentation['query'] is not None:
-            params += self.documentation['query']
-
-        if 'query' in self.parent.documentation and self.parent.documentation['query'] is not None:
-            params += self.parent.documentation['query']
-
-        return params
-
 
 class APIViewIntrospector(BaseViewIntrospector):
     def __iter__(self):
@@ -348,3 +232,21 @@ class ViewSetMethodIntrospector(BaseMethodIntrospector):
 
     def get_http_method(self):
         return self.http_method
+
+
+class SerializerIntrospector(object):
+    @staticmethod
+    def get_identifier(serializer):
+        if serializer is None:
+            return None
+
+        if not inspect.isclass(serializer):
+            serializer = serializer.__class__
+
+        identifier = serializer.__name__
+        # identifier = serializer.__module__ + '.' + serializer.__name__
+        #
+        # identifier = ''.join(w[0].upper() + w[1:] for w in re.split(r'[_. ]+', identifier))
+        # identifier = ''.join(x for x in identifier if x.isalpha())
+        #
+        return identifier
