@@ -420,6 +420,10 @@ class RstLikeDocumentationParserTest(TestCase):
             :serializer: .serializer
             :deserializer: .deserializer
 
+            :response:
+                200
+                    Ok
+                404: Not found
             :unknown:
                 test
                     test
@@ -437,6 +441,10 @@ class RstLikeDocumentationParserTest(TestCase):
             ],
             'serializer': '.serializer',
             'deserializer': '.deserializer',
+            'responses': {
+                '200': 'Ok',
+                '404': 'Not found'
+            }
         }
         self.assertDictEqual(expected, self.parser.parse(docstring))
 

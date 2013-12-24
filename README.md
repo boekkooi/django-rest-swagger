@@ -112,15 +112,16 @@ The parser handles the following:
 * Method implementation notes
 * Query parameters (user-defined)
 * Post parameters (user-defined)
-* serializer (user-defined)
-* deserializer (user-defined)
+* Serializer (user-defined)
+* Deserializer (user-defined)
+* Response code and message (user-defined)
 
 ```python
 class Countries(APIView):
     """
     This text is the description for this API
 
-    :Query:
+    :query:
       param1
           :required:
           A get parameter description
@@ -128,6 +129,11 @@ class Countries(APIView):
           A integer get parameter description
 
     :serializer: .serializers.CountrySerializer
+
+    :response:
+      404 : Country ain't there
+      500
+        Please contact ... we have a problem
     """
 ```
 

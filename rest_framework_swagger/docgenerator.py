@@ -97,6 +97,18 @@ class DocumentationGenerator(object):
         parameters = introspector.get_parameters()
         if len(parameters) > 0:
             operation['parameters'] = parameters
+
+        responses = introspector.get_response_messages()
+        if isinstance(responses, dict) and len(responses) > 0:
+            messages = []
+            for code in responses:
+                description = responses[code]
+                messages.append({
+                    'code': code,
+                    'message': formatter(description)
+                })
+            operation['responseMessages'] = messages
+
         return operation
 
     def generate_model(self, serializer):

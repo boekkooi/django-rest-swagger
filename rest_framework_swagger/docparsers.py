@@ -63,7 +63,7 @@ class RstLikeDocumentationParser(object):
         rtn['description'] = []
         variable_names = ['deserializer', 'serializer']
         # TODO allow for types array or object (or similar) within the lists
-        list_names = ['query', 'post']
+        list_names = ['query', 'post', 'response']
 
         lines = trim_docstring(doc).split('\n')
 
@@ -174,6 +174,11 @@ class RstLikeDocumentationParser(object):
             rtn['query'] = self._normalize_params(rtn['query'])
         if 'post' in rtn and rtn['post']:
             rtn['post'] = self._normalize_params(rtn['post'])
+
+        if 'response' in rtn and rtn['response']:
+            rtn['responses'] = self._convert_params_to_dict(rtn['response'])
+            del rtn['response']
+
         return rtn
 
     def _parse_variable(self, line):
@@ -195,3 +200,10 @@ class RstLikeDocumentationParser(object):
                 ('dataType' not in param or not param['dataType']):
                 param['type'] = param['dataType'] = ""
         return params
+
+    def _convert_params_to_dict(self, params):
+        rtn = {}
+        for param in params:
+            desc = param['description'] if param['description'] != '' else param['type']
+            rtn[param['name']] = desc
+        return rtn

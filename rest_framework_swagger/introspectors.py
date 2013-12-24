@@ -177,6 +177,9 @@ class BaseMethodIntrospector(object):
             return None
         return getattr(self.callback, method).__doc__
 
+    def get_response_messages(self):
+        return self.documentation['responses'] if 'responses' in self.documentation else None
+
     def get_parameters(self):
         """
         Returns parameters for an API. Parameters are a combination of HTTP
