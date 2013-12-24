@@ -314,22 +314,26 @@ class ViewSetIntrospector(BaseViewIntrospector):
             yield ViewSetMethodIntrospector(self, methods[method], method)
 
     def _resolve_methods(self):
-        if sys.version_info < (3,):
-            if not hasattr(self.pattern.callback, 'func_code') or \
-                    not hasattr(self.pattern.callback, 'func_closure') or \
-                    not hasattr(self.pattern.callback.func_code, 'co_freevars') or \
-                    'actions' not in self.pattern.callback.func_code.co_freevars:
-                raise RuntimeError('Unable to use callback invalid closure/function specified.')
-            idx = self.pattern.callback.func_code.co_freevars.index('actions')
-            return self.pattern.callback.func_closure[idx].cell_contents if not None else []
+        """
+        Resolve the methods of the current view callback.
+        This is done based on the closure specified in [rest_framework.ViewSetMixin.as_view](https://github.com/tomchristie/django-rest-framework/blob/master/rest_framework/viewsets.py#L60)
+        """
+        cb = self.pattern.callback
 
-        if not hasattr(self.pattern.callback, '__code__') or \
-                not hasattr(self.pattern.callback, '__closure__') or \
-                not hasattr(self.pattern.callback.__code__, 'co_freevars') or \
-                'actions' not in self.pattern.callback.__code__.co_freevars:
+        if sys.version_info < (3,):
+            cb_func_code = 'func_code'
+            cb_func_closure = 'func_closure'
+        else:
+            cb_func_code = '__code__'
+            cb_func_closure = '__closure__'
+
+        if not hasattr(cb, cb_func_closure) or \
+                not hasattr(cb, cb_func_code) or \
+                'actions' not in getattr(cb, cb_func_code).co_freevars:
             raise RuntimeError('Unable to use callback invalid closure/function specified.')
-        idx = self.pattern.callback.__code__.co_freevars.index('actions')
-        return self.pattern.callback.__closure__[idx].cell_contents if not None else []
+
+        idx = getattr(cb, cb_func_code).co_freevars.index('actions')
+        return getattr(cb, cb_func_closure)[idx].cell_contents if not None else []
 
 
 class ViewSetMethodIntrospector(BaseMethodIntrospector):
