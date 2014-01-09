@@ -159,8 +159,10 @@ class DocumentationGenerator(object):
         return params
 
     def _generate_method_form_parameters(self, introspector):
-        params = []
+        if 'post' in introspector.documentation and introspector.documentation['post'] is not None:
+            return introspector.documentation['post']
 
+        params = []
         serializer = introspector.get_deserializer_class()
         if serializer is None:
             return params
